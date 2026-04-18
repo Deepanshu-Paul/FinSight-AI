@@ -1,20 +1,81 @@
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from services.api_gateway.db import get_connection
-from services.llm_service.llm import generate_explanation
+from services.llm_service.llm import generate_explanation, call_llm
+from services.rag_service.retriever import retrieve
 
 app = FastAPI()
 
 
-@app.get("/")
-def root():
-    return {"message": "FinSight AI is running"}
+# -----------------------------
+# Root UI (Dashboard)
+# -----------------------------
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return """
+    <html>
+    <head>
+        <title>FinSight AI</title>
+        <style>
+            body { font-family: Arial; padding: 40px; background: #111; color: #eee; }
+            button { padding: 10px; margin: 10px 0; cursor: pointer; }
+            input { padding: 8px; width: 300px; }
+            pre { background: #222; padding: 10px; border-radius: 5px; }
+            h1 { color: #00ffcc; }
+        </style>
+    </head>
+    <body>
+        <h1>🚀 FinSight AI Dashboard</h1>
+
+        <h2>📊 Fraud Summary</h2>
+        <button onclick="getSummary()">Load Summary</button>
+        <pre id="summary"></pre>
+
+        <h2>🤖 Fraud Insight</h2>
+        <button onclick="getInsight()">Generate Insight</button>
+        <pre id="insight"></pre>
+
+        <h2>🧠 Ask (RAG)</h2>
+        <input id="query" placeholder="Ask about fraud..." />
+        <button onclick="ask()">Ask</button>
+        <pre id="answer"></pre>
+
+        <script>
+            async function getSummary() {
+                const res = await fetch('/fraud-summary');
+                const data = await res.json();
+                document.getElementById('summary').innerText = JSON.stringify(data, null, 2);
+            }
+
+            async function getInsight() {
+                const res = await fetch('/fraud-insight');
+                const data = await res.json();
+                document.getElementById('insight').innerText = data.insight;
+            }
+
+            async function ask() {
+                const query = document.getElementById('query').value;
+                const res = await fetch('/ask?q=' + encodeURIComponent(query));
+                const data = await res.json();
+                document.getElementById('answer').innerText = data.answer;
+            }
+        </script>
+    </body>
+    </html>
+    """
 
 
+# -----------------------------
+# Health Check
+# -----------------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
+# -----------------------------
+# Fraud Summary
+# -----------------------------
 @app.get("/fraud-summary")
 def fraud_summary():
     try:
@@ -45,6 +106,9 @@ def fraud_summary():
         }
 
 
+# -----------------------------
+# Fraud Insight (LLM)
+# -----------------------------
 @app.get("/fraud-insight")
 def fraud_insight():
     try:
@@ -65,7 +129,6 @@ def fraud_insight():
         print(f"DB Error: {e}")
         total, fraud = 0, 0
 
-    # Always attempt LLM (but it may fallback)
     explanation = generate_explanation(total, fraud)
 
     return {
@@ -74,60 +137,12 @@ def fraud_insight():
         "insight": explanation
     }
 
-from fastapi.responses import HTMLResponse
 
-@app.get("/ui", response_class=HTMLResponse)
-def ui():
-    return """
-    <html>
-    <head>
-        <title>FinSight AI</title>
-    </head>
-    <body style="font-family: Arial; padding: 40px;">
-        <h1>FinSight AI Dashboard</h1>
-
-        <h2>Fraud Summary</h2>
-        <button onclick="getSummary()">Load Summary</button>
-        <pre id="summary"></pre>
-
-        <h2>Fraud Insight (AI)</h2>
-        <button onclick="getInsight()">Generate Insight</button>
-        <pre id="insight"></pre>
-
-        <h2>Ask Custom Question (RAG)</h2>
-        <input id="query" style="width:300px;" placeholder="Ask something..." />
-        <button onclick="ask()">Ask</button>
-        <pre id="answer"></pre>
-
-        <script>
-            async function getSummary() {
-                const res = await fetch('/fraud-summary');
-                const data = await res.json();
-                document.getElementById('summary').innerText = JSON.stringify(data, null, 2);
-            }
-
-            async function getInsight() {
-                const res = await fetch('/fraud-insight');
-                const data = await res.json();
-                document.getElementById('insight').innerText = data.insight;
-            }
-
-            async function ask() {
-                const query = document.getElementById('query').value;
-                const res = await fetch('/ask?q=' + encodeURIComponent(query));
-                const data = await res.json();
-                document.getElementById('answer').innerText = data.answer;
-            }
-        </script>
-    </body>
-    </html>
-    """
-
+# -----------------------------
+# RAG Query Endpoint
+# -----------------------------
 @app.get("/ask")
 def ask(q: str):
-    from services.rag_service.retriever import retrieve
-    from services.llm_service.llm import generate_explanation
-
     context = retrieve(q)
 
     prompt = f"""
@@ -139,11 +154,8 @@ def ask(q: str):
     Question:
     {q}
 
-    Answer clearly.
+    Provide a clear and concise answer.
     """
-
-    # reuse LLM logic (slight modification needed)
-    from services.llm_service.llm import call_llm
 
     answer = call_llm(prompt)
 
