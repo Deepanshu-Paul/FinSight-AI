@@ -22,10 +22,24 @@ jobs:
         run: sleep 15
 
       - name: Check container status
-        run: docker ps -a
+        run: |
+          echo "==== Docker PS ===="
+          docker ps -a
+          echo "==== Container Running Status ===="
+          docker inspect -f '{{.State.Running}}' test-container || true
 
-      - name: Show container logs (important)
-        run: docker logs test-container
+      - name: Show container logs (IMPORTANT)
+        run: docker logs test-container || true
+
+      - name: Fail if container stopped
+        run: |
+          STATUS=$(docker inspect -f '{{.State.Running}}' test-container)
+          if [ "$STATUS" != "true" ]; then
+            echo "❌ Container is not running!"
+            exit 1
+          else
+            echo "✅ Container is running"
+          fi
 
       - name: Test health endpoint
         run: curl http://localhost:8000/health
