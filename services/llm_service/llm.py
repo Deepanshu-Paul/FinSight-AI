@@ -1,6 +1,21 @@
 import requests
 
+def call_llm(prompt):
+    try:
+        response = requests.post(
+            "http://host.docker.internal:11434/api/generate",
+            json={
+                "model": "llama3",
+                "prompt": prompt,
+                "stream": False
+            },
+            timeout=5
+        )
+        return response.json().get("response", "No response")
 
+    except Exception:
+        return "LLM unavailable (fallback response)"
+    
 def generate_explanation(total, fraud):
     """
     Generate explanation using LLM.
