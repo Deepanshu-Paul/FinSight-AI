@@ -1,0 +1,7 @@
+Fraud detection guidelines:
+
+1. Transactions above normal spending patterns are suspicious.
+2. Rapid repeated transactions indicate possible fraud.
+3. Cross-border transactions have higher fraud risk.
+4. Fraud rates below 1% are typical in banking systems.
+5. Sudden spikes in fraud require immediate investigation.
