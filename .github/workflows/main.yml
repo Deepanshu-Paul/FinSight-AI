@@ -10,16 +10,22 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build Docker image
         run: docker build -t finsight-ai .
 
       - name: Run container
-        run: docker run -d -p 8000:8000 finsight-ai
+        run: docker run -d -p 8000:8000 --name test-container finsight-ai
 
-      - name: Wait for startup
-        run: sleep 10
+      - name: Wait for container startup
+        run: sleep 15
 
-      - name: Health check
+      - name: Check container status
+        run: docker ps -a
+
+      - name: Show container logs (important)
+        run: docker logs test-container
+
+      - name: Test health endpoint
         run: curl http://localhost:8000/health
