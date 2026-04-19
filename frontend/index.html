@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FinSight AI</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+html, body {
+    margin: 0;
+    height: 100%;
+    font-family: "Segoe UI", sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+.container {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.sidebar {
+    width: 200px;
+    min-width: 200px;
+    background: #020617;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.sidebar h2 {
+    color: #38bdf8;
+    margin-bottom: 20px;
+}
+
+.sidebar button {
+    padding: 10px;
+    width: 100%;
+    background: #1e293b;
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.main {
+    flex: 1;
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    box-sizing: border-box;
+}
+
+.analytics {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.chat-panel {
+    flex: 1;
+    background: #1e293b;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+
+.kpi-row {
+    display: flex;
+    gap: 15px;
+    height: 80px;
+}
+
+.kpi {
+    flex: 1;
+    background: #1e293b;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.chart-row {
+    display: flex;
+    gap: 15px;
+    flex: 1;
+}
+
+.card {
+    flex: 1;
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.card canvas {
+    max-height: 220px;
+    width: 100% !important;
+}
+
+.chat-box {
+    flex: 1;
+    overflow-y: auto;
+    background: #020617;
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.message {
+    padding: 8px;
+    margin: 6px 0;
+    border-radius: 6px;
+    max-width: 80%;
+    font-size: 13px;
+    white-space: pre-wrap;
+}
+
+.user {
+    background: #38bdf8;
+    color: black;
+    margin-left: auto;
+}
+
+.bot {
+    background: #334155;
+}
+
+.input-area {
+    display: flex;
+    margin-top: 8px;
+}
+
+input {
+    flex: 1;
+    padding: 8px;
+    border-radius: 5px;
+    border: none;
+}
+
+button.send {
+    margin-left: 5px;
+    background: #38bdf8;
+    border: none;
+    padding: 8px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    color: #e2e8f0;
+}
+
+th, td {
+    border: 1px solid #444;
+    padding: 5px;
+    text-align: left;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+    <div class="sidebar">
+        <h2>FinSight</h2>
+        <button onclick="loadAll()">Load Dashboard</button>
+    </div>
+
+    <div class="main">
+        <div class="analytics">
+            <div class="kpi-row">
+                <div class="kpi"><h3 id="total">-</h3><p>Total</p></div>
+                <div class="kpi"><h3 id="fraud">-</h3><p>Fraud</p></div>
+                <div class="kpi"><h3 id="rate">-</h3><p>Rate</p></div>
+            </div>
+
+            <div class="chart-row">
+                <div class="card"><canvas id="donut"></canvas></div>
+                <div class="card"><canvas id="line"></canvas></div>
+            </div>
+
+            <div class="chart-row">
+                <div class="card"><canvas id="bar"></canvas></div>
+            </div>
+        </div>
+
+        <div class="chat-panel">
+            <h3>AI Assistant</h3>
+            <div id="chat" class="chat-box"></div>
+
+            <div class="input-area">
+                <input id="query" placeholder="Ask about fraud or data..." />
+                <button class="send" onclick="send()">Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const BASE_URL = window.location.origin;
+
+let donutChart, lineChart, barChart;
+
+async function loadAll() {
+    try {
+        const res = await fetch(`${BASE_URL}/fraud-summary`);
+        const data = await res.json();
+
+        const total = data.total_transactions || 0;
+        const fraud = data.fraud_transactions || 0;
+        const normal = total - fraud;
+        const rate = total > 0 ? ((fraud / total) * 100).toFixed(2) : 0;
+
+        document.getElementById("total").innerText = total;
+        document.getElementById("fraud").innerText = fraud;
+        document.getElementById("rate").innerText = rate + "%";
+
+        if (donutChart) donutChart.destroy();
+        donutChart = new Chart(document.getElementById("donut"), {
+            type: "doughnut",
+            data: {
+                labels: ["Normal", "Fraud"],
+                datasets: [{ data: [normal, fraud] }]
+            },
+            options: {
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { labels: { color: "#e2e8f0" } }
+                }
+            }
+        });
+
+        if (lineChart) lineChart.destroy();
+        lineChart = new Chart(document.getElementById("line"), {
+            type: "line",
+            data: {
+                labels: ["Jan", "Feb", "Mar", "Apr", "May"],
+                datasets: [{ label: "Fraud", data: [2, 5, 3, 8, 6] }]
+            },
+            options: {
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { labels: { color: "#e2e8f0" } }
+                }
+            }
+        });
+
+        if (barChart) barChart.destroy();
+        barChart = new Chart(document.getElementById("bar"), {
+            type: "bar",
+            data: {
+                labels: ["Low", "Medium", "High"],
+                datasets: [{ data: [normal * 0.7, normal * 0.2, fraud] }]
+            },
+            options: {
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    } catch (err) {
+        console.error("Dashboard load error:", err);
+        addMessage("bot", "Could not load dashboard data.");
+    }
+}
+
+function addMessage(type, text) {
+    const chat = document.getElementById("chat");
+    const div = document.createElement("div");
+    div.className = "message " + type;
+    div.innerText = text || "No response";
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function formatText(text) {
+    return (text || "")
+        .replace(/\n/g, "\n\n")
+        .replace(/- /g, "• ");
+}
+
+function renderTable(columns, rows) {
+    const chat = document.getElementById("chat");
+
+    let table = "<table><tr>";
+    columns.forEach(col => {
+        table += `<th>${col}</th>`;
+    });
+    table += "</tr>";
+
+    rows.forEach(row => {
+        table += "<tr>";
+        row.forEach(cell => {
+            table += `<td>${cell}</td>`;
+        });
+        table += "</tr>";
+    });
+
+    table += "</table>";
+
+    const div = document.createElement("div");
+    div.className = "message bot";
+    div.innerHTML = table;
+
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function isDBQuery(q) {
+    const keywords = ["count", "total", "average", "sum", "show", "transactions", "amount", "fraud"];
+    return keywords.some(k => q.toLowerCase().includes(k));
+}
+
+async function send() {
+    const input = document.getElementById("query");
+    const q = input.value;
+    if (!q) return;
+
+    addMessage("user", q);
+    input.value = "";
+    addMessage("bot", "Thinking...");
+
+    const endpoint = isDBQuery(q) ? "/ask-db" : "/ask";
+
+    try {
+        const res = await fetch(`${BASE_URL}${endpoint}?q=` + encodeURIComponent(q));
+
+        let data;
+        try {
+            data = await res.json();
+        } catch (e) {
+            const text = await res.text();
+            document.querySelectorAll(".bot").forEach(el => {
+                if (el.innerText === "Thinking...") el.remove();
+            });
+            addMessage("bot", "Invalid JSON response:\n" + text);
+            return;
+        }
+
+        document.querySelectorAll(".bot").forEach(el => {
+            if (el.innerText === "Thinking...") el.remove();
+        });
+
+        if (data.type === "table_with_explanation") {
+            renderTable(data.columns, data.rows);
+            if (data.explanation) {
+                addMessage("bot", formatText(data.explanation));
+            }
+            return;
+        }
+
+        if (data.type === "table") {
+            renderTable(data.columns, data.rows);
+            return;
+        }
+
+        if (data.type === "text" || data.answer) {
+            addMessage("bot", formatText(data.answer || "No response"));
+            return;
+        }
+
+        if (data.type === "error") {
+            addMessage("bot", "Error: " + data.message);
+            return;
+        }
+
+        addMessage("bot", JSON.stringify(data));
+    } catch (err) {
+        console.error(err);
+        document.querySelectorAll(".bot").forEach(el => {
+            if (el.innerText === "Thinking...") el.remove();
+        });
+        addMessage("bot", "Error fetching response");
+    }
+}
+
+window.onload = loadAll;
+</script>
+</body>
+</html>

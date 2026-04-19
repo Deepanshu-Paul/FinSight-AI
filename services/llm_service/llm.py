@@ -19,11 +19,16 @@ def call_llm(prompt):
             temperature=0.3,
         )
 
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+
+        if not content:
+            return None  # IMPORTANT
+
+        return content.strip()
 
     except Exception as e:
         print("LLM ERROR:", e)
-        return "LLM unavailable (fallback response)"
+        return None  # IMPORTANT (not fallback text)
 
 
 def generate_explanation(total, fraud):
