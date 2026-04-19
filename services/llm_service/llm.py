@@ -1,64 +1,28 @@
 import os
-import requests
+from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
-HF_API_KEY = os.getenv("HF_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+client = Groq(api_key=GROQ_API_KEY)
 
 
 def call_llm(prompt):
     try:
-        response = requests.post(
-            "https://api-inference.huggingface.co/models/google/flan-t5-base",
-            headers={
-                "Authorization": f"Bearer {HF_API_KEY}"
-            },
-            json={
-                "inputs": prompt
-            },
-            timeout=30
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
         )
 
-        print("HF STATUS:", response.status_code)
-
-        # 🔁 Handle cold start (very common)
-        if response.status_code == 503:
-            print("⏳ Model loading... retrying in 5 sec")
-            import time
-            time.sleep(5)
-
-            response = requests.post(
-                "https://api-inference.huggingface.co/models/google/flan-t5-base",
-                headers={
-                    "Authorization": f"Bearer {HF_API_KEY}"
-                },
-                json={
-                    "inputs": prompt
-                },
-                timeout=30
-            )
-
-        # ❌ Still failing
-        if response.status_code != 200:
-            print("HF ERROR:", response.status_code, response.text)
-            return "LLM unavailable (fallback response)"
-
-        data = response.json()
-        print("HF RESPONSE:", data)
-
-        # ✅ Normal HF format
-        if isinstance(data, list) and len(data) > 0:
-            return data[0].get("generated_text", "No response")
-
-        # ⚠️ Sometimes HF returns dict
-        if isinstance(data, dict):
-            return data.get("generated_text", str(data))
-
-        return str(data)
+        return response.choices[0].message.content
 
     except Exception as e:
-        print("LLM Exception:", e)
+        print("LLM ERROR:", e)
         return "LLM unavailable (fallback response)"
 
 
@@ -79,38 +43,25 @@ def generate_explanation(total, fraud):
     """
 
     try:
-        response = requests.post(
-            "https://api-inference.huggingface.co/models/google/flan-t5-base",
-            headers={
-                "Authorization": f"Bearer {HF_API_KEY}"
-            },
-            json={
-                "inputs": prompt
-            },
-            timeout=30
-        )
-
-        if response.status_code != 200:
-            print("HF ERROR:", response.text)
-            raise Exception("HF failed")
-
-        data = response.json()
-
-        if isinstance(data, list):
-            return data[0].get("generated_text", "No response")
-
-        return str(data)
+        return call_llm(prompt)
 
     except Exception as e:
-        print(f"LLM Error: {e}")
+        print("LLM Error:", e)
 
-        # ✅ Fallback logic (kept from your version)
+        # ✅ Strong fallback (keep this)
         if total == 0:
             return "No transaction data available."
 
         fraud_rate = (fraud / total) * 100 if total > 0 else 0
 
+        if fraud_rate < 1:
+            level = "low"
+        elif fraud_rate < 5:
+            level = "moderate"
+        else:
+            level = "high"
+
         return (
-            f"Fraud rate is approximately {fraud_rate:.2f}%. "
-            f"This is a basic system-generated insight (LLM unavailable)."
+            f"Fraud rate is {fraud_rate:.2f}%, indicating a {level} level of fraudulent activity. "
+            f"This may be due to unusual transaction patterns or anomalies that should be investigated."
         )
