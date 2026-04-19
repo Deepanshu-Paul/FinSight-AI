@@ -129,14 +129,36 @@ def fraud_insight():
         print(f"DB Error: {e}")
         total, fraud = 0, 0
 
-    explanation = generate_explanation(total, fraud)
+    # 🔥 NEW: get context from RAG
+    from services.rag_service.retriever import retrieve
+    context = retrieve("fraud detection patterns")
+
+    # 🔥 Combine everything into prompt
+    prompt = f"""
+    You are a financial fraud analyst.
+
+    Data:
+    - Total transactions: {total}
+    - Fraud transactions: {fraud}
+
+    Context:
+    {''.join(context)}
+
+    Explain:
+    - What this fraud rate indicates
+    - Possible reasons
+    - Any patterns
+    """
+
+    from services.llm_service.llm import call_llm
+    explanation = call_llm(prompt)
 
     return {
         "total": total,
         "fraud": fraud,
+        "context_used": context,
         "insight": explanation
     }
-
 
 # -----------------------------
 # RAG Query Endpoint
