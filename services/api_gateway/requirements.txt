@@ -1,10 +1,7 @@
 fastapi
 uvicorn
 psycopg2-binary
-requests
-sentence-transformers
-qdrant-client
-numpy
-requests
-python-dotenv
 groq
+qdrant-client
+python-dotenv
+requests

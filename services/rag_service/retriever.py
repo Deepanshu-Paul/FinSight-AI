@@ -15,29 +15,43 @@ client = QdrantClient(
 COLLECTION_NAME = "fraud_rules"
 
 
+def simple_score(query_words, text):
+    score = 0
+    for word in query_words:
+        if word in text:
+            score += 2  # strong match
+        if word in text.split():
+            score += 1  # exact word bonus
+    return score
+
+
 def retrieve(query, k=3):
     try:
-        query_words = query.lower().split()
+        query_words = [w for w in query.lower().split() if len(w) > 2]
 
-        # Fetch candidates
-        results = client.scroll(
+        results, _ = client.scroll(
             collection_name=COLLECTION_NAME,
-            limit=20
-        )[0]
+            limit=50   # increased candidate pool
+        )
 
         scored = []
+
         for r in results:
-            text = r.payload["text"].lower()
+            text = r.payload.get("text", "")
+            text_lower = text.lower()
 
-            # simple keyword score
-            score = sum(word in text for word in query_words)
+            score = simple_score(query_words, text_lower)
 
-            scored.append((score, r.payload["text"]))
+            if score > 0:
+                scored.append((score, text))
 
-        # sort best first
-        scored.sort(reverse=True)
+        # fallback if nothing matches
+        if not scored:
+            return ["No strong match found in knowledge base."]
 
-        return [text for score, text in scored[:k]]
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        return [text for _, text in scored[:k]]
 
     except Exception as e:
         print("Retriever error:", e)
