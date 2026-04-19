@@ -1,21 +1,41 @@
+import os
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+HF_API_KEY = os.getenv("HF_API_KEY")
+
 
 def call_llm(prompt):
     try:
         response = requests.post(
-            "http://host.docker.internal:11434/api/generate",
-            json={
-                "model": "llama3",
-                "prompt": prompt,
-                "stream": False
+            "https://api-inference.huggingface.co/models/google/flan-t5-base",
+            headers={
+                "Authorization": f"Bearer {HF_API_KEY}"
             },
-            timeout=5
+            json={
+                "inputs": prompt
+            },
+            timeout=30
         )
-        return response.json().get("response", "No response")
 
-    except Exception:
+        if response.status_code != 200:
+            print("HF ERROR:", response.text)
+            return "LLM unavailable (fallback response)"
+
+        data = response.json()
+
+        if isinstance(data, list):
+            return data[0].get("generated_text", "No response")
+
+        return str(data)
+
+    except Exception as e:
+        print("LLM Exception:", e)
         return "LLM unavailable (fallback response)"
-    
+
+
 def generate_explanation(total, fraud):
     """
     Generate explanation using LLM.
@@ -34,21 +54,31 @@ def generate_explanation(total, fraud):
 
     try:
         response = requests.post(
-            "http://host.docker.internal:11434/api/generate",
-            json={
-                "model": "llama3",
-                "prompt": prompt,
-                "stream": False
+            "https://api-inference.huggingface.co/models/google/flan-t5-base",
+            headers={
+                "Authorization": f"Bearer {HF_API_KEY}"
             },
-            timeout=5
+            json={
+                "inputs": prompt
+            },
+            timeout=30
         )
 
-        return response.json().get("response", "No response from LLM")
+        if response.status_code != 200:
+            print("HF ERROR:", response.text)
+            raise Exception("HF failed")
+
+        data = response.json()
+
+        if isinstance(data, list):
+            return data[0].get("generated_text", "No response")
+
+        return str(data)
 
     except Exception as e:
         print(f"LLM Error: {e}")
 
-        # ✅ Fallback logic (important for deployment)
+        # ✅ Fallback logic (kept from your version)
         if total == 0:
             return "No transaction data available."
 
