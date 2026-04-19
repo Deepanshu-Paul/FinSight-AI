@@ -1,40 +1,42 @@
 import os
+from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
-import faiss
+from dotenv import load_dotenv
 
+load_dotenv()
+
+QDRANT_URL = os.getenv("QDRANT_URL")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+
+print("QDRANT URL loaded:", QDRANT_URL is not None)
+print("QDRANT API key loaded:", QDRANT_API_KEY is not None)
+
+client = QdrantClient(
+    url=QDRANT_URL,
+    api_key=QDRANT_API_KEY
+)
+
+COLLECTION_NAME = "fraud_rules"
+
+# ✅ Load model ONCE
+print("🚀 Loading embedding model (for queries)...")
 model = SentenceTransformer("all-MiniLM-L6-v2")
-
-INDEX_PATH = "/app/data/knowledge/faiss_index.bin"
-DOC_PATH = "/app/data/knowledge/fraud_rules.txt"
-
-docs = []
-
-# ✅ SAFE FILE LOADING
-if os.path.exists(DOC_PATH):
-    with open(DOC_PATH, "r") as f:
-        docs = f.readlines()
-else:
-    print("⚠️ fraud_rules.txt not found, using fallback")
-    docs = [
-        "No knowledge base available.",
-        "Fraud detection typically involves anomaly detection and pattern analysis."
-    ]
-
-# ✅ SAFE INDEX LOADING
-if os.path.exists(INDEX_PATH):
-    try:
-        index = faiss.read_index(INDEX_PATH)
-    except:
-        index = None
-else:
-    index = None
 
 
 def retrieve(query, k=2):
-    if index is None:
-        return docs[:k]
+    try:
+        # ✅ Embed query locally
+        query_vec = model.encode(query).tolist()
 
-    query_vec = model.encode([query])
-    distances, indices = index.search(query_vec, k)
+        # ✅ Search Qdrant
+        results = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vec,
+            limit=k
+        )
 
-    return [docs[i] for i in indices[0] if i < len(docs)]
+        return [r.payload["text"] for r in results]
+
+    except Exception as e:
+        print("Qdrant error:", e)
+        return ["Fallback: No context available."]

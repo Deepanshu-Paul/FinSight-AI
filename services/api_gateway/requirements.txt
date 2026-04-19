@@ -3,4 +3,7 @@ uvicorn
 psycopg2-binary
 requests
 sentence-transformers
-faiss-cpu
+qdrant-client
+numpy
+requests
+python-dotenv
