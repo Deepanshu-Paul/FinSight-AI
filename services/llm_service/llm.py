@@ -20,14 +20,40 @@ def call_llm(prompt):
             timeout=30
         )
 
+        print("HF STATUS:", response.status_code)
+
+        # 🔁 Handle cold start (very common)
+        if response.status_code == 503:
+            print("⏳ Model loading... retrying in 5 sec")
+            import time
+            time.sleep(5)
+
+            response = requests.post(
+                "https://api-inference.huggingface.co/models/google/flan-t5-base",
+                headers={
+                    "Authorization": f"Bearer {HF_API_KEY}"
+                },
+                json={
+                    "inputs": prompt
+                },
+                timeout=30
+            )
+
+        # ❌ Still failing
         if response.status_code != 200:
-            print("HF ERROR:", response.text)
+            print("HF ERROR:", response.status_code, response.text)
             return "LLM unavailable (fallback response)"
 
         data = response.json()
+        print("HF RESPONSE:", data)
 
-        if isinstance(data, list):
+        # ✅ Normal HF format
+        if isinstance(data, list) and len(data) > 0:
             return data[0].get("generated_text", "No response")
+
+        # ⚠️ Sometimes HF returns dict
+        if isinstance(data, dict):
+            return data.get("generated_text", str(data))
 
         return str(data)
 
